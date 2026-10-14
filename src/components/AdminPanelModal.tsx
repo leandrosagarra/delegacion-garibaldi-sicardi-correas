@@ -48,6 +48,10 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
   // Active tab: 'claims' | 'news'
   const [activeTab, setActiveTab] = useState<'claims' | 'news'>('claims');
 
+  // Delete confirmations (no window.confirm in iframe)
+  const [confirmDeleteNewsId, setConfirmDeleteNewsId] = useState<string | null>(null);
+  const [confirmDeleteClaimId, setConfirmDeleteClaimId] = useState<string | null>(null);
+
   // Claims state
   const [claims, setClaims] = useState<ClaimSubmission[]>([]);
   const [claimSearch, setClaimSearch] = useState('');
@@ -117,7 +121,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
       setPinInput('');
       loadData();
     } else {
-      setPinError('Código incorrecto. El código de ingreso es 1422.');
+      setPinError('Código incorrecto. Verificá los 4 dígitos ingresados.');
     }
   };
 
@@ -135,9 +139,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  // Claim delete
+  // Claim delete (no window.confirm)
   const handleDeleteClaim = (id: string) => {
-    if (!window.confirm('¿Seguro que deseás eliminar este reclamo del registro?')) return;
     const updated = claims.filter((c) => c.id !== id);
     setClaims(updated);
     try {
@@ -145,6 +148,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     } catch (e) {
       console.error(e);
     }
+    setConfirmDeleteClaimId(null);
     if (selectedClaim && selectedClaim.id === id) {
       setSelectedClaim(null);
     }
@@ -222,9 +226,8 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     }
   };
 
-  // News delete
+  // News delete (no window.confirm, uses inline confirmation)
   const handleDeleteNews = (id: string) => {
-    if (!window.confirm('¿Deseás eliminar esta noticia de la web comunal?')) return;
     const updated = news.filter((n) => n.id !== id);
     setNews(updated);
     try {
@@ -232,6 +235,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     } catch (e) {
       console.error(e);
     }
+    setConfirmDeleteNewsId(null);
     if (onNewsUpdated) {
       onNewsUpdated();
     }
@@ -239,7 +243,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Reset defaults
   const handleResetDefaultNews = () => {
-    if (!window.confirm('¿Restablecer las noticias iniciales por defecto?')) return;
     setNews(INITIAL_NEWS);
     try {
       localStorage.setItem('delegacion_noticias', JSON.stringify(INITIAL_NEWS));
@@ -347,7 +350,7 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   setPinInput(e.target.value);
                   setPinError('');
                 }}
-                placeholder="Ingresá 1422"
+                placeholder="••••"
                 className="w-full text-center text-3xl font-mono tracking-widest py-3.5 px-4 rounded-2xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent bg-slate-50 font-bold"
               />
 
@@ -359,10 +362,6 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                 <span>Ingresar al Panel</span>
               </button>
             </form>
-
-            <span className="text-[11px] text-slate-400">
-              Código institucional: <strong>1422</strong>
-            </span>
           </div>
         ) : (
           /* Unlocked Admin Panel Body */
@@ -527,13 +526,34 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                             <option value="Solucionado">Solucionado</option>
                           </select>
 
-                          <button
-                            onClick={() => handleDeleteClaim(c.id)}
-                            className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Eliminar reclamo"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {confirmDeleteClaimId === c.id ? (
+                            <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-1 rounded-xl">
+                              <span className="text-[10px] font-bold text-rose-700 mr-1">¿Borrar?</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteClaim(c.id)}
+                                className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition-colors cursor-pointer"
+                              >
+                                Sí
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteClaimId(null)}
+                                className="px-1.5 py-0.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-medium transition-colors cursor-pointer"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteClaimId(c.id)}
+                              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Eliminar reclamo"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -747,13 +767,34 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                           <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
                             {item.tag}
                           </span>
-                          <button
-                            onClick={() => handleDeleteNews(item.id)}
-                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="Eliminar noticia"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {confirmDeleteNewsId === item.id ? (
+                            <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-lg">
+                              <span className="text-[10px] font-bold text-rose-700">¿Borrar?</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteNews(item.id)}
+                                className="px-1.5 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition-colors cursor-pointer"
+                              >
+                                Sí
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteNewsId(null)}
+                                className="px-1 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-medium transition-colors cursor-pointer"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteNewsId(item.id)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Eliminar noticia"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                         <h6 className="font-bold text-slate-900 text-xs line-clamp-1">
                           {item.title}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Phone, Clock, MapPin, Shield, KeyRound } from 'lucide-react';
+import { Menu, X, Phone, Clock, MapPin, Shield } from 'lucide-react';
 import { getDelegationStatus } from '../utils/officeHours';
 import { OFFICIAL_PHONE_PLAIN } from '../data/initialData';
 
@@ -117,16 +117,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAdmin }) => {
             ))}
           </nav>
 
-          {/* Admin Panel button (PIN 1422) */}
+          {/* Phone quick contact button */}
           <div className="hidden sm:flex items-center gap-2">
-            <button
-              onClick={onOpenAdmin}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:border-emerald-500 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-800 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
-              title="Acceso de gestión interna (código 1422)"
+            <a
+              href={`tel:${OFFICIAL_PHONE_PLAIN}`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-emerald-500 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 text-xs font-semibold shadow-2xs transition-all"
             >
-              <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Panel de Gestión</span>
-            </button>
+              <Phone className="w-3.5 h-3.5 text-emerald-600" />
+              <span>(0221) 441-6910</span>
+            </a>
           </div>
 
           {/* Mobile hamburger menu button */}
@@ -159,17 +158,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenAdmin }) => {
           </nav>
 
           <div className="pt-3 border-t border-slate-100 space-y-2">
-            <button
-              onClick={() => {
-                handleLinkClick();
-                if (onOpenAdmin) onOpenAdmin();
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 font-bold text-xs hover:bg-emerald-100 transition-colors cursor-pointer"
-            >
-              <KeyRound className="w-4 h-4 text-emerald-700" />
-              <span>Panel de Gestión (Reclamos y Noticias)</span>
-            </button>
-
             <a
               href={`tel:${OFFICIAL_PHONE_PLAIN}`}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-colors"
