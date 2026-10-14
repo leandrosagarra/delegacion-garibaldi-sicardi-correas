@@ -1,0 +1,6 @@
+{
+  "name": "Delegación Garibaldi, Sicardi y Correas - La Plata",
+  "description": "Sitio web institucional de la Delegación Municipal de Villa Garibaldi, Parque Sicardi e Ignacio Correas - Municipalidad de La Plata.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
