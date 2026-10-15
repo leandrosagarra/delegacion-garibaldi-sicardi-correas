@@ -12,6 +12,7 @@ import {
 import { ClaimSubmission, Neighborhood } from '../types';
 import { CLAIM_TYPES, OFFICIAL_PHONE } from '../data/initialData';
 import { generateTicketNumber } from '../utils/officeHours';
+import { getStoredClaims, addStoredClaim } from '../utils/claimsStorage';
 import { ClaimSuccessModal } from './ClaimSuccessModal';
 
 interface ClaimsSectionProps {
@@ -40,16 +41,18 @@ export const ClaimsSection: React.FC<ClaimsSectionProps> = ({
   const [savedClaims, setSavedClaims] = useState<ClaimSubmission[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Load existing claims from localStorage
+  // Load existing claims from localStorage and listen to updates
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('delegacion_reclamos');
-      if (stored) {
-        setSavedClaims(JSON.parse(stored));
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    setSavedClaims(getStoredClaims());
+    const handleUpdate = () => {
+      setSavedClaims(getStoredClaims());
+    };
+    window.addEventListener('delegacion_reclamos_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('delegacion_reclamos_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   // Update claimType if user clicked from services
@@ -111,14 +114,9 @@ export const ClaimsSection: React.FC<ClaimsSectionProps> = ({
     };
 
     setTimeout(() => {
-      // Save locally
-      const updated = [newClaim, ...savedClaims];
+      // Save locally safely without overwriting previous claims
+      const updated = addStoredClaim(newClaim);
       setSavedClaims(updated);
-      try {
-        localStorage.setItem('delegacion_reclamos', JSON.stringify(updated));
-      } catch (err) {
-        console.error(err);
-      }
 
       setIsSubmitting(false);
       setSubmittedClaim(newClaim);

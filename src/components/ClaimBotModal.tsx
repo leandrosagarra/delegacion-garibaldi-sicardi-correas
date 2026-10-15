@@ -23,6 +23,7 @@ import {
 import { CLAIM_TYPES, DELEGATION_ADDRESS, OFFICIAL_PHONE, EMERGENCY_NUMBERS } from '../data/initialData';
 import { ClaimSubmission, Neighborhood } from '../types';
 import { generateTicketNumber } from '../utils/officeHours';
+import { addStoredClaim, getStoredClaims } from '../utils/claimsStorage';
 
 interface Message {
   id: string;
@@ -340,15 +341,8 @@ export const ClaimBotModal: React.FC<ClaimBotModalProps> = ({
         })
       };
 
-      // Save to localStorage
-      try {
-        const stored = localStorage.getItem('delegacion_reclamos');
-        const list: ClaimSubmission[] = stored ? JSON.parse(stored) : [];
-        const updated = [finalClaim, ...list];
-        localStorage.setItem('delegacion_reclamos', JSON.stringify(updated));
-      } catch (err) {
-        console.error(err);
-      }
+      // Save safely to storage
+      addStoredClaim(finalClaim);
 
       if (onClaimCreated) {
         onClaimCreated(finalClaim);
@@ -385,8 +379,7 @@ export const ClaimBotModal: React.FC<ClaimBotModalProps> = ({
 
     if (wizardStep === 'search_ticket') {
       try {
-        const stored = localStorage.getItem('delegacion_reclamos');
-        const list: ClaimSubmission[] = stored ? JSON.parse(stored) : [];
+        const list = getStoredClaims();
         const found = list.find((item) => 
           item.ticketNumber.toUpperCase() === text.toUpperCase() ||
           item.ticketNumber.replace(/-/g, '').toUpperCase() === text.replace(/-/g, '').toUpperCase()

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { ClaimSubmission, NewsArticle, Neighborhood, ClaimStatus } from '../types';
 import { INITIAL_NEWS } from '../data/initialData';
+import { getStoredClaims, deleteStoredClaim, updateStoredClaimStatus } from '../utils/claimsStorage';
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -82,23 +83,29 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
     { label: 'Institucional', url: '/logo.jpg' }
   ];
 
-  // Load claims and news
+  // Load claims and news, and sync automatically on updates
   useEffect(() => {
     if (isOpen) {
       loadData();
     }
+    const handleClaimsUpdated = () => {
+      setClaims(getStoredClaims());
+    };
+    window.addEventListener('delegacion_reclamos_updated', handleClaimsUpdated);
+    window.addEventListener('storage', handleClaimsUpdated);
+    return () => {
+      window.removeEventListener('delegacion_reclamos_updated', handleClaimsUpdated);
+      window.removeEventListener('storage', handleClaimsUpdated);
+    };
   }, [isOpen]);
 
   const loadData = () => {
     try {
-      const storedClaims = localStorage.getItem('delegacion_reclamos');
-      if (storedClaims) {
-        setClaims(JSON.parse(storedClaims));
-      } else {
-        setClaims([]);
-      }
+      const currentClaims = getStoredClaims();
+      setClaims(currentClaims);
     } catch (e) {
       console.error(e);
+      setClaims([]);
     }
 
     try {
@@ -127,27 +134,17 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
 
   // Claim status update
   const handleUpdateClaimStatus = (id: string, newStatus: ClaimStatus) => {
-    const updated = claims.map((c) => (c.id === id ? { ...c, status: newStatus } : c));
+    const updated = updateStoredClaimStatus(id, newStatus);
     setClaims(updated);
-    try {
-      localStorage.setItem('delegacion_reclamos', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
     if (selectedClaim && selectedClaim.id === id) {
       setSelectedClaim({ ...selectedClaim, status: newStatus });
     }
   };
 
-  // Claim delete (no window.confirm)
+  // Claim delete: only disappears when deleted by the admin (no window.confirm, inline confirmation)
   const handleDeleteClaim = (id: string) => {
-    const updated = claims.filter((c) => c.id !== id);
+    const updated = deleteStoredClaim(id);
     setClaims(updated);
-    try {
-      localStorage.setItem('delegacion_reclamos', JSON.stringify(updated));
-    } catch (e) {
-      console.error(e);
-    }
     setConfirmDeleteClaimId(null);
     if (selectedClaim && selectedClaim.id === id) {
       setSelectedClaim(null);
@@ -450,7 +447,34 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                   </div>
                 </div>
 
-                {/* Claims Grid / List */}
+                {/* Claims Grid / List Header */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-1">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                      <span>Pedidos y Solicitudes Registradas</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
+                        {claims.length} {claims.length === 1 ? 'pedido' : 'pedidos'}
+                      </span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Listados verticalmente uno abajo del otro. Permanecen guardados hasta que decidas eliminarlos.
+                    </p>
+                  </div>
+                  {(claimSearch || claimBarrioFilter !== 'Todos' || claimStatusFilter !== 'Todos') && (
+                    <button
+                      onClick={() => {
+                        setClaimSearch('');
+                        setClaimBarrioFilter('Todos');
+                        setClaimStatusFilter('Todos');
+                      }}
+                      className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold hover:underline"
+                    >
+                      Limpiar filtros
+                    </button>
+                  )}
+                </div>
+
+                {/* Claims List - Vertical Stack */}
                 {filteredClaims.length === 0 ? (
                   <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 text-slate-500">
                     <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-2" />
@@ -460,100 +484,133 @@ export const AdminPanelModal: React.FC<AdminPanelModalProps> = ({
                         ? 'Aún no se registraron reclamos desde la web o el bot.' 
                         : 'No hay coincidencias con los filtros de búsqueda aplicados.'}
                     </p>
+                    {claims.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setClaimSearch('');
+                          setClaimBarrioFilter('Todos');
+                          setClaimStatusFilter('Todos');
+                        }}
+                        className="mt-3 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                      >
+                        Ver todos los {claims.length} pedidos
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {filteredClaims.map((c) => (
+                  <div className="space-y-4">
+                    {filteredClaims.map((c, index) => (
                       <div
                         key={c.id}
-                        className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-2xs transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4"
+                        className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-emerald-300 hover:shadow-sm transition-all flex flex-col gap-3.5"
                       >
-                        <div className="space-y-1.5 flex-1">
+                        {/* Header Row: Index, Ticket, Category, Date */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono font-extrabold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200 text-xs">
+                            <span className="font-bold text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                              #{index + 1}
+                            </span>
+                            <span className="font-mono font-extrabold text-emerald-900 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200 text-xs tracking-wider">
                               {c.ticketNumber}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800">
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800">
                               {c.claimType}
                             </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
                             <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
+                              <Calendar className="w-3.5 h-3.5" />
                               {c.createdAt}
                             </span>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-slate-800">
-                            <span className="flex items-center gap-1 font-bold text-slate-900">
-                              <User className="w-3.5 h-3.5 text-slate-400" />
-                              {c.fullName}
-                            </span>
-                            <a
-                              href={`tel:${c.phone}`}
-                              className="flex items-center gap-1 text-emerald-700 hover:underline"
-                            >
-                              <Phone className="w-3.5 h-3.5" />
-                              {c.phone}
-                            </a>
-                            <span className="flex items-center gap-1 text-slate-600">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                              <strong>{c.neighborhood}</strong> · {c.address}
-                            </span>
-                          </div>
-
-                          <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                            {c.description}
-                          </p>
                         </div>
 
-                        {/* Status Change & Actions */}
-                        <div className="flex items-center gap-2 w-full lg:w-auto justify-end border-t lg:border-t-0 pt-2 lg:pt-0">
-                          <select
-                            value={c.status}
-                            onChange={(e) => handleUpdateClaimStatus(c.id, e.target.value as ClaimStatus)}
-                            className={`py-1.5 px-3 rounded-xl text-xs font-bold border cursor-pointer ${
-                              c.status === 'Solucionado'
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                                : c.status === 'En Cuadrilla'
-                                ? 'bg-blue-50 text-blue-800 border-blue-300'
-                                : c.status === 'En Inspección'
-                                ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                : 'bg-slate-50 text-slate-700 border-slate-300'
-                            }`}
+                        {/* Neighbor & Location Info */}
+                        <div className="flex flex-wrap items-center gap-y-2 gap-x-4 text-xs">
+                          <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                            <User className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{c.fullName}</span>
+                          </div>
+                          <a
+                            href={`tel:${c.phone}`}
+                            className="flex items-center gap-1.5 text-emerald-700 font-semibold hover:underline bg-emerald-50/60 px-2 py-0.5 rounded-lg border border-emerald-100"
+                            title="Llamar al vecino"
                           >
-                            <option value="Recibido">Recibido</option>
-                            <option value="En Inspección">En Inspección</option>
-                            <option value="En Cuadrilla">En Cuadrilla</option>
-                            <option value="Solucionado">Solucionado</option>
-                          </select>
+                            <Phone className="w-3 h-3" />
+                            <span>{c.phone}</span>
+                          </a>
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                            <span><strong className="text-slate-900">{c.neighborhood}</strong> · {c.address}</span>
+                          </div>
+                        </div>
 
-                          {confirmDeleteClaimId === c.id ? (
-                            <div className="flex items-center gap-1 bg-rose-50 border border-rose-200 px-2 py-1 rounded-xl">
-                              <span className="text-[10px] font-bold text-rose-700 mr-1">¿Borrar?</span>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteClaim(c.id)}
-                                className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold transition-colors cursor-pointer"
-                              >
-                                Sí
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteClaimId(null)}
-                                className="px-1.5 py-0.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-medium transition-colors cursor-pointer"
-                              >
-                                No
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteClaimId(c.id)}
-                              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                              title="Eliminar reclamo"
+                        {/* Description Box */}
+                        <div className="text-xs text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-200/80 leading-relaxed">
+                          <span className="font-semibold text-slate-800 block text-[11px] uppercase tracking-wider mb-1 text-slate-500">
+                            Detalle del pedido:
+                          </span>
+                          {c.description}
+                        </div>
+
+                        {/* Status Change & Actions Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                              Estado de gestión:
+                            </span>
+                            <select
+                              value={c.status}
+                              onChange={(e) => handleUpdateClaimStatus(c.id, e.target.value as ClaimStatus)}
+                              className={`py-1 px-3 rounded-xl text-xs font-bold border cursor-pointer transition-colors ${
+                                c.status === 'Solucionado'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : c.status === 'En Cuadrilla'
+                                  ? 'bg-blue-50 text-blue-800 border-blue-300'
+                                  : c.status === 'En Inspección'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                  : 'bg-slate-50 text-slate-700 border-slate-300'
+                              }`}
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                              <option value="Recibido">Recibido</option>
+                              <option value="En Inspección">En Inspección</option>
+                              <option value="En Cuadrilla">En Cuadrilla</option>
+                              <option value="Solucionado">Solucionado</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {confirmDeleteClaimId === c.id ? (
+                              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-xl animate-in fade-in">
+                                <span className="text-[11px] font-bold text-rose-800 mr-1">¿Eliminar este pedido?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteClaim(c.id)}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                                >
+                                  Sí, borrar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteClaimId(null)}
+                                  className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteClaimId(c.id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-500 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                                title="Eliminar pedido permanentemente"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                <span>Borrar</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
